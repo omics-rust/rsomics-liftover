@@ -358,32 +358,44 @@ impl Record {
 }
 
 fn map_start(chain: &Chain, position: u64) -> Option<u64> {
-    chain.blocks.iter().find_map(|block| {
-        (block.target_start <= position && position < block.target_start + block.size)
-            .then(|| boundary(chain, block, position))
+    let upper = chain
+        .blocks
+        .partition_point(|block| block.target_start <= position);
+    upper.checked_sub(1).and_then(|index| {
+        let block = &chain.blocks[index];
+        (position < block.target_start + block.size).then(|| boundary(chain, block, position))
     })
 }
 
 fn map_end(chain: &Chain, position: u64) -> Option<u64> {
     map_start(chain, position).or_else(|| {
-        chain.blocks.iter().find_map(|block| {
-            (block.target_start < position && position <= block.target_start + block.size)
-                .then(|| boundary(chain, block, position))
+        let upper = chain
+            .blocks
+            .partition_point(|block| block.target_start < position);
+        upper.checked_sub(1).and_then(|index| {
+            let block = &chain.blocks[index];
+            (position <= block.target_start + block.size).then(|| boundary(chain, block, position))
         })
     })
 }
 
 fn next_start(chain: &Chain, position: u64) -> Option<u64> {
-    chain.blocks.iter().find_map(|block| {
-        let end = block.target_start + block.size;
-        (position < end).then(|| boundary(chain, block, position.max(block.target_start)))
-    })
+    let index = chain
+        .blocks
+        .partition_point(|block| block.target_start + block.size <= position);
+    chain
+        .blocks
+        .get(index)
+        .map(|block| boundary(chain, block, position.max(block.target_start)))
 }
 
 fn previous_end(chain: &Chain, position: u64) -> Option<u64> {
-    chain.blocks.iter().rev().find_map(|block| {
-        (block.target_start < position)
-            .then(|| boundary(chain, block, position.min(block.target_start + block.size)))
+    let upper = chain
+        .blocks
+        .partition_point(|block| block.target_start < position);
+    upper.checked_sub(1).map(|index| {
+        let block = &chain.blocks[index];
+        boundary(chain, block, position.min(block.target_start + block.size))
     })
 }
 

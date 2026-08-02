@@ -166,3 +166,20 @@ fn bed12_thick_boundary_fudging_matches_live_ucsc() {
         &["--fudge-thick"],
     );
 }
+
+#[test]
+fn reverse_zero_length_coordinates_match_live_ucsc() {
+    let Some(oracle) = oracle() else {
+        return;
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("point.bed");
+    std::fs::write(&input, b"chr2\t100\t100\tpoint\n").unwrap();
+    compare(
+        &oracle,
+        &input,
+        &golden("test.chain"),
+        &[],
+        &[],
+    );
+}

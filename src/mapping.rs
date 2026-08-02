@@ -172,13 +172,16 @@ impl ChainMap {
 }
 
 pub(crate) fn map_in_chain(chain: &Chain, start: u64, end: u64) -> Option<(u64, MappedInterval)> {
+    let first = chain
+        .blocks
+        .partition_point(|block| block.target_start + block.size <= start);
     if start == end {
-        return chain.blocks.iter().find_map(|block| {
+        return chain.blocks.get(first).and_then(|block| {
             let block_end = block.target_start + block.size;
             (block.target_start <= start && start < block_end).then(|| {
                 let query = block.query_start + start - block.target_start;
                 let query = if chain.query_minus {
-                    chain.query_size - query
+                    chain.query_size - query - 1
                 } else {
                     query
                 };
@@ -197,7 +200,10 @@ pub(crate) fn map_in_chain(chain: &Chain, start: u64, end: u64) -> Option<(u64, 
     let mut mapped = 0;
     let mut mapped_start = u64::MAX;
     let mut mapped_end = 0;
-    for block in &chain.blocks {
+    for block in chain.blocks[first..]
+        .iter()
+        .take_while(|block| block.target_start < end)
+    {
         let overlap_start = start.max(block.target_start);
         let overlap_end = end.min(block.target_start + block.size);
         if overlap_start >= overlap_end {
@@ -312,6 +318,15 @@ mod tests {
         assert_eq!(
             map().map("old", 200, 200, options(0.0)),
             Mapping::Rejected(Rejection::Deleted)
+        );
+        assert_eq!(
+            map().map("old2", 100, 100, options(0.95)),
+            Mapping::Mapped(vec![MappedInterval {
+                chrom: "newB".to_owned(),
+                start: 699,
+                end: 699,
+                reverse: true,
+            }])
         );
     }
 }
