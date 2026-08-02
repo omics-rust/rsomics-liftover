@@ -26,6 +26,7 @@ clap = { version = "4", features = ["derive"] }
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 rsomics-common = "0.11"
 rsomics-help = "0.4"
+rsomics-intervals = "0.3"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
