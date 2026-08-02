@@ -33,3 +33,15 @@ evidence. UCSC executables and assembly chain files are not included or
 redistributed.
 
 Historical rsomics code is team-owned. This crate is MIT OR Apache-2.0.
+
+## Performance
+
+On a pinned Linux x86_64 core, the current release candidate mapped a
+100,000-record deterministic BED6 fixture in a median 0.22 seconds across five
+runs. The separately downloaded official UCSC executable took 8.74 seconds;
+mapped and rejected outputs were byte-identical. A 100,000-record
+`hg38ToHg19` run took 0.44 seconds versus 1.66 seconds with identical output.
+
+The complete commands, fixture and binary hashes, stress workloads, timing
+distribution, memory measurements, and machine provenance are recorded in
+[`benchmarks/2026-08-02-linux-x86_64.md`](benchmarks/2026-08-02-linux-x86_64.md).
