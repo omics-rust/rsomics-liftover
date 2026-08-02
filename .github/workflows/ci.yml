@@ -27,14 +27,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.91.0
         with:
           components: rustfmt, clippy
-      - if: matrix.runner != 'ubuntu-24.04-arm'
+      - if: startsWith(matrix.runner, 'macos-')
         shell: bash
         run: |
           case "${{ matrix.runner }}" in
-            ubuntu-24.04)
-              url='https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver'
-              expected='b7e295f3e06186ab34c89b2abdc58e98e55ac5aa158db4df1c6292b023a272bd'
-              ;;
             macos-15)
               url='https://hgdownload.soe.ucsc.edu/admin/exe/macOSX.arm64/liftOver'
               expected='0604b6ef4a0ae5dd56847950469fe000df7e206f235a05b3d1332e226823969d'
@@ -45,7 +41,7 @@ jobs:
               ;;
           esac
           oracle="$RUNNER_TEMP/liftOver"
-          curl --fail --location --retry 3 "$url" --output "$oracle"
+          curl --fail --location --retry 3 --max-time 180 "$url" --output "$oracle"
           actual=$(shasum -a 256 "$oracle" | awk '{print $1}')
           test "$actual" = "$expected"
           chmod +x "$oracle"

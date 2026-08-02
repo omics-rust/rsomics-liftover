@@ -27,8 +27,9 @@ this slice. They remain absent from the command tree until each format has its
 own complete compatibility model and evidence.
 
 The chain specification and separately downloaded black-box `liftOver`
-executables define the compatibility oracle. CI pins official UCSC binaries by
-hash where UCSC supplies a native build. UCSC executables and assembly chain
-files are not included or redistributed.
+executables define the compatibility oracle. CI pins both official UCSC macOS
+binaries by hash; Linux oracle runs are recorded separately with release
+evidence. UCSC executables and assembly chain files are not included or
+redistributed.
 
 Historical rsomics code is team-owned. This crate is MIT OR Apache-2.0.
