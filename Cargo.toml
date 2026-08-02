@@ -7,8 +7,11 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/omics-rust/rsomics-liftover"
 authors = ["Zane Leong <efd@live.com>"]
 description = "Lift BED interval coordinates between assemblies via a UCSC chain file — Rust port of UCSC liftOver"
+homepage = "https://github.com/omics-rust/rsomics-liftover"
+documentation = "https://docs.rs/rsomics-liftover"
 categories = ["science", "command-line-utilities"]
 keywords = ["liftover", "chain", "bed", "ucsc", "bioinformatics"]
+readme = "README.md"
 
 [[bin]]
 name = "rsomics-liftover"
@@ -17,16 +20,14 @@ path = "src/main.rs"
 [lib]
 name = "rsomics_liftover"
 path = "src/lib.rs"
-doctest = false
 
 [dependencies]
-rsomics-common = { version = "0.6" }
 clap = { version = "4", features = ["derive"] }
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+rsomics-common = "0.11"
+rsomics-help = "0.4"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
+serde_json = "1"
 tempfile = "3"
-criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
-
-[[bench]]
-name = "bench"
-harness = false

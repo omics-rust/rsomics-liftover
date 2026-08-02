@@ -1,23 +1,30 @@
 # rsomics-liftover
 
-Lift BED interval coordinates from one assembly to another through a UCSC chain
-file — a fast Rust port of UCSC `liftOver`.
+`rsomics-liftover` translates genomic records between assemblies through UCSC
+chain files. The reconstruction checkpoint currently exposes the completed
+chain layer:
 
+- `chain validate` checks syntax, bounds, strands, block arithmetic, terminal
+  totals, overflow, and unique identifiers;
+- `chain inspect` emits aligned blocks with query coordinates normalized to
+  the forward strand.
+
+```text
+rsomics-liftover chain validate hg38ToHg19.over.chain.gz
+rsomics-liftover chain inspect map.chain -o blocks.tsv
 ```
-rsomics-liftover old.bed map.chain new.bed unmapped.bed [--minMatch 0.95]
-```
 
-An interval is written to `new.bed` (new-assembly coordinates) when at least
-`--minMatch` of its bases map and land in one contiguous target region; otherwise
-it goes to the unmapped file with liftOver's reason line (`#Deleted in new`,
-`#Partially deleted in new`, `#Split in new`).
+Plain and gzip inputs are detected from content. Inspection output is written
+transactionally, and output aliases are rejected before parsing.
 
-## Origin
+BED conversion is under reconstruction and is not present in the command tree
+until strict BED3-6/BED12 mapping, mapped/unmapped transactions, live UCSC
+differentials, and representative performance evidence are complete. Variant,
+alignment, signal, annotation, and MAF conversion are later independently
+gated slices.
 
-Independent Rust reimplementation of UCSC `liftOver`, based on the public chain
-format and black-box behaviour testing against the upstream binary. Minus-strand
-chains place the target on the `+` strand via `qSize - pos`. No upstream source
-was read.
+The chain specification and black-box `liftOver` executable define the first
+compatibility oracle. The UCSC executable and assembly chain files are not
+included or redistributed.
 
-License: MIT OR Apache-2.0.
-Upstream credit: UCSC Genome Browser <https://genome.ucsc.edu/> (liftOver).
+Historical rsomics code is team-owned. This crate is MIT OR Apache-2.0.

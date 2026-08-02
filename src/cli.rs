@@ -1,60 +1,124 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process;
 
-use clap::Parser;
-use rsomics_common::{CommonFlags, Result, Tool, ToolMeta};
+use clap::{Args, Parser, Subcommand};
+use rsomics_common::{OutputArgs, Result, RsomicsError, ToolMeta, run as run_tool};
+use serde::Serialize;
 
-pub const META: ToolMeta = ToolMeta {
-    name: env!("CARGO_PKG_NAME"),
+use crate::chain::ChainFile;
+
+const META: ToolMeta = ToolMeta {
+    name: "rsomics-liftover",
     version: env!("CARGO_PKG_VERSION"),
 };
 
-#[derive(Parser, Debug)]
+#[derive(Debug, Parser)]
 #[command(
     name = "rsomics-liftover",
     version,
-    about = "Lift BED coordinates between assemblies via a UCSC chain file — port of UCSC liftOver"
+    about = "Translate genomic records between assemblies through UCSC chains",
+    arg_required_else_help = true
 )]
-pub struct Cli {
-    /// Input BED in the old assembly.
-    pub old_file: PathBuf,
-
-    /// UCSC chain file.
-    pub chain: PathBuf,
-
-    /// Output BED in the new assembly.
-    pub new_file: PathBuf,
-
-    /// Unmapped records (with the reason comment line).
-    pub unmapped: PathBuf,
-
-    /// Minimum ratio of bases that must remap.
-    #[arg(long = "minMatch", default_value_t = 0.95)]
-    pub min_match: f64,
-
+struct Cli {
     #[command(flatten)]
-    pub common: CommonFlags,
+    output: OutputArgs,
+
+    #[command(subcommand)]
+    command: Command,
 }
 
-impl Tool for Cli {
-    fn meta() -> ToolMeta {
-        META
-    }
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Validate or inspect a UCSC chain file
+    Chain(ChainArgs),
+}
 
-    fn common(&self) -> &CommonFlags {
-        &self.common
-    }
+#[derive(Debug, Args)]
+struct ChainArgs {
+    #[command(subcommand)]
+    command: ChainCommand,
+}
 
-    fn execute(self) -> Result<()> {
-        let map = rsomics_liftover::ChainMap::load(&self.chain)?;
-        let mut out = std::io::BufWriter::new(
-            std::fs::File::create(&self.new_file).map_err(rsomics_common::RsomicsError::Io)?,
-        );
-        let mut un = std::io::BufWriter::new(
-            std::fs::File::create(&self.unmapped).map_err(rsomics_common::RsomicsError::Io)?,
-        );
-        rsomics_liftover::lift_bed(&map, &self.old_file, &mut out, &mut un, self.min_match)?;
-        Ok(())
+#[derive(Debug, Subcommand)]
+enum ChainCommand {
+    /// Validate syntax, bounds, block totals, ordering, and identifiers
+    Validate(ChainInput),
+    /// Emit normalized aligned blocks as a tab-separated table
+    Inspect(InspectArgs),
+}
+
+#[derive(Debug, Args)]
+struct ChainInput {
+    /// UCSC chain file, plain or gzip-compressed
+    #[arg(value_name = "CHAIN")]
+    chain: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct InspectArgs {
+    #[command(flatten)]
+    input: ChainInput,
+
+    /// Output table; omit or use - for standard output
+    #[arg(short, long, value_name = "TSV", help_heading = "Output")]
+    output: Option<PathBuf>,
+}
+
+#[derive(Debug, Serialize)]
+struct ChainReport {
+    chains: usize,
+    blocks: usize,
+    aligned_bases: u64,
+    target_span_bases: u64,
+    query_span_bases: u64,
+}
+
+#[must_use]
+pub(crate) fn run() -> process::ExitCode {
+    let cli = rsomics_help::parse::<Cli>();
+    let output = cli.output.clone();
+    run_tool(&output, META, || execute(cli))
+}
+
+fn execute(cli: Cli) -> Result<ChainReport> {
+    match cli.command {
+        Command::Chain(args) => match args.command {
+            ChainCommand::Validate(args) => load(&args.chain).map(report),
+            ChainCommand::Inspect(args) => {
+                if cli.output.json && is_stdout(args.output.as_deref()) {
+                    return Err(RsomicsError::ConfigError(
+                        "--json requires the inspection table to use a named output".to_owned(),
+                    ));
+                }
+                if let Some(output) = args.output.as_deref() {
+                    rsomics_common::reject_output_alias(output, Some(args.input.chain.as_path()))?;
+                }
+                let chains = load(&args.input.chain)?;
+                crate::io::write_output(args.output.as_deref(), |writer| {
+                    chains.write_blocks(writer)
+                })?;
+                Ok(report(chains))
+            }
+        },
     }
+}
+
+fn load(path: &Path) -> Result<ChainFile> {
+    ChainFile::parse(crate::io::open_input(path)?)
+}
+
+fn report(chains: ChainFile) -> ChainReport {
+    ChainReport {
+        chains: chains.len(),
+        blocks: chains.block_count(),
+        aligned_bases: chains.aligned_bases(),
+        target_span_bases: chains.target_span_bases(),
+        query_span_bases: chains.query_span_bases(),
+    }
+}
+
+fn is_stdout(path: Option<&Path>) -> bool {
+    path.is_none_or(|path| path == Path::new("-"))
 }
 
 #[cfg(test)]
@@ -63,7 +127,7 @@ mod tests {
     use clap::CommandFactory;
 
     #[test]
-    fn cli_debug_assert() {
+    fn command_tree_is_valid() {
         Cli::command().debug_assert();
     }
 }

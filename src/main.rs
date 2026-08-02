@@ -1,10 +1,5 @@
-mod cli;
+#![forbid(unsafe_code)]
 
-use std::process::ExitCode;
-
-use clap::Parser;
-use rsomics_common::Tool;
-
-fn main() -> ExitCode {
-    cli::Cli::parse().run()
+fn main() -> std::process::ExitCode {
+    rsomics_liftover::run_binary()
 }
