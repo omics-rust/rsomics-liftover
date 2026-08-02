@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -10,16 +10,24 @@ use tempfile::{Builder, NamedTempFile};
 pub(crate) fn with_output_pair<T>(
     mapped: &Path,
     rejected: &Path,
-    operation: impl FnOnce(&mut File, &mut File) -> Result<T>,
+    operation: impl FnOnce(&mut dyn Write, &mut dyn Write) -> Result<T>,
 ) -> Result<T> {
     let mut mapped_output = Staged::new(mapped)?;
     let mut rejected_output = Staged::new(rejected)?;
     let mapped_backup = Backup::new(mapped)?;
     let rejected_backup = Backup::new(rejected)?;
-    let result = operation(
-        mapped_output.temporary.as_file_mut(),
-        rejected_output.temporary.as_file_mut(),
-    )?;
+    let result = {
+        let mut mapped_writer = BufWriter::new(mapped_output.temporary.as_file_mut());
+        let mut rejected_writer = BufWriter::new(rejected_output.temporary.as_file_mut());
+        let result = operation(&mut mapped_writer, &mut rejected_writer)?;
+        mapped_writer
+            .flush()
+            .rs_with_context(|| format!("buffering output {}", mapped.display()))?;
+        rejected_writer
+            .flush()
+            .rs_with_context(|| format!("buffering output {}", rejected.display()))?;
+        result
+    };
     mapped_output.prepare()?;
     rejected_output.prepare()?;
     if let Err(error) = mapped_output.commit() {
