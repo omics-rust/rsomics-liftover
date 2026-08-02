@@ -3,13 +3,13 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-#[cfg(test)]
 mod bed;
+mod bed12;
 mod chain;
 mod cli;
 mod io;
-#[cfg(test)]
 mod mapping;
+mod transaction;
 
 /// Execute the product command-line entry point.
 #[doc(hidden)]

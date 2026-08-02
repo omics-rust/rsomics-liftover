@@ -28,7 +28,7 @@ rsomics-common = "0.11"
 rsomics-help = "0.4"
 rsomics-intervals = "0.3"
 serde = { version = "1", features = ["derive"] }
+tempfile = "3"
 
 [dev-dependencies]
 serde_json = "1"
-tempfile = "3"

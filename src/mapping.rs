@@ -127,6 +127,23 @@ impl ChainMap {
         }
     }
 
+    pub(crate) fn candidate_chains(
+        &self,
+        chrom: &str,
+        start: u64,
+        end: u64,
+        options: MappingOptions,
+    ) -> Vec<&Chain> {
+        self.candidates(chrom, start, end)
+            .into_iter()
+            .map(|index| &self.chains[index])
+            .filter(|chain| {
+                chain.target_end - chain.target_start >= options.min_chain_target
+                    && chain.query_end - chain.query_start >= options.min_chain_query
+            })
+            .collect()
+    }
+
     fn candidates(&self, chrom: &str, start: u64, end: u64) -> Vec<usize> {
         let Some(source) = self.sources.get(chrom) else {
             return Vec::new();
@@ -154,7 +171,7 @@ impl ChainMap {
     }
 }
 
-fn map_in_chain(chain: &Chain, start: u64, end: u64) -> Option<(u64, MappedInterval)> {
+pub(crate) fn map_in_chain(chain: &Chain, start: u64, end: u64) -> Option<(u64, MappedInterval)> {
     if start == end {
         return chain.blocks.iter().find_map(|block| {
             let block_end = block.target_start + block.size;

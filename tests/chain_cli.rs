@@ -14,14 +14,18 @@ fn fixture() -> PathBuf {
 }
 
 #[test]
-fn help_exposes_only_implemented_chain_operations() {
+fn help_exposes_implemented_product_operations() {
     let output = Command::new(binary()).arg("--help").output().unwrap();
     assert!(output.status.success());
     let help = String::from_utf8(output.stdout).unwrap();
     assert!(help.contains("chain"));
-    assert!(!help.contains("bed"));
+    assert!(help.contains("bed"));
 
-    for args in [&["chain", "--help"][..], &["chain", "validate", "--help"]] {
+    for args in [
+        &["chain", "--help"][..],
+        &["chain", "validate", "--help"],
+        &["bed", "--help"],
+    ] {
         assert!(
             Command::new(binary())
                 .args(args)

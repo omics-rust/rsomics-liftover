@@ -8,8 +8,10 @@ use crate::mapping::{ChainMap, MappedInterval, Mapping, MappingOptions};
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BedOptions {
     pub(crate) mapping: MappingOptions,
+    pub(crate) min_blocks: f64,
     pub(crate) no_serial: bool,
     pub(crate) preserve_input: bool,
+    pub(crate) fudge_thick: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize)]
@@ -41,18 +43,40 @@ pub(crate) fn convert(
         if record_line.is_empty() {
             continue;
         }
-        let record = BedRecord::parse(record_line, line_number)?;
+        let field_count = record_line.split('\t').count();
+        if !matches!(field_count, 3..=6 | 12) {
+            return Err(RsomicsError::InvalidInput(format!(
+                "BED line {line_number}: expected 3 to 6 or 12 tab-separated fields, found {field_count}"
+            )));
+        }
         match width {
-            None => width = Some(record.width()),
-            Some(expected) if expected != record.width() => {
+            None => width = Some(field_count),
+            Some(expected) if expected != field_count => {
                 return Err(RsomicsError::InvalidInput(format!(
-                    "BED line {line_number}: expected {expected} fields, found {}",
-                    record.width()
+                    "BED line {line_number}: expected {expected} fields, found {field_count}"
                 )));
             }
             Some(_) => {}
         }
         report.records += 1;
+        if field_count == 12 {
+            let outcome = crate::bed12::convert_record(
+                record_line,
+                line_number,
+                mapped,
+                rejected,
+                chains,
+                options,
+            )?;
+            if outcome == 0 {
+                report.rejected_records += 1;
+            } else {
+                report.mapped_records += 1;
+                report.mapped_outputs += outcome;
+            }
+            continue;
+        }
+        let record = BedRecord::parse(record_line, line_number)?;
         match chains.map(
             record.interval.chrom(),
             record.interval.start(),
@@ -85,12 +109,7 @@ struct BedRecord {
 impl BedRecord {
     fn parse(line: &str, line_number: usize) -> Result<Self> {
         let fields: Vec<&str> = line.split('\t').collect();
-        if !(3..=6).contains(&fields.len()) {
-            return Err(RsomicsError::InvalidInput(format!(
-                "BED line {line_number}: expected 3 to 6 tab-separated fields, found {}",
-                fields.len()
-            )));
-        }
+        debug_assert!((3..=6).contains(&fields.len()));
         if fields[0].is_empty() {
             return Err(RsomicsError::InvalidInput(format!(
                 "BED line {line_number}: chromosome must not be empty"
@@ -98,6 +117,11 @@ impl BedRecord {
         }
         let start = coordinate(fields[1], "start", line_number)?;
         let end = coordinate(fields[2], "end", line_number)?;
+        if start == u64::MAX {
+            return Err(RsomicsError::InvalidInput(format!(
+                "BED line {line_number}: start must be smaller than u64::MAX"
+            )));
+        }
         let interval = Interval::new(fields[0].to_owned(), start, end).map_err(|error| {
             RsomicsError::InvalidInput(format!("BED line {line_number}: {error}"))
         })?;
@@ -121,10 +145,6 @@ impl BedRecord {
                 .map(|field| (*field).to_owned())
                 .collect(),
         })
-    }
-
-    fn width(&self) -> usize {
-        self.tail.len() + 3
     }
 
     fn write_mapped(
@@ -188,7 +208,10 @@ impl BedRecord {
         format!(
             "{}:{}-{}",
             self.interval.chrom(),
-            self.interval.start() + 1,
+            self.interval
+                .start()
+                .checked_add(1)
+                .expect("BED start is smaller than u64::MAX"),
             self.interval.end()
         )
     }
@@ -215,8 +238,10 @@ mod tests {
                 min_chain_target: 0,
                 min_chain_query: 0,
             },
+            min_blocks: 1.0,
             no_serial: false,
             preserve_input: false,
+            fudge_thick: false,
         }
     }
 
@@ -296,5 +321,19 @@ mod tests {
                 "{input}"
             );
         }
+    }
+
+    #[test]
+    fn rejects_unrepresentable_origin_coordinate() {
+        let chains = ChainMap::new(ChainFile::parse(CHAINS).unwrap());
+        let error = convert(
+            b"old\t18446744073709551615\t18446744073709551615\n".as_slice(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &chains,
+            options(0.5),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("start must be smaller"));
     }
 }
