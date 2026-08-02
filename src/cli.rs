@@ -202,7 +202,7 @@ fn execute_bed(args: BedArgs) -> Result<crate::bed::BedReport> {
         preserve_input: args.preserve_input,
         fudge_thick: args.fudge_thick,
     };
-    crate::transaction::with_output_pair(&args.mapped, &args.rejected, |mapped, rejected| {
+    rsomics_common::write_atomic_pair(&args.mapped, &args.rejected, |mapped, rejected| {
         crate::bed::convert(input, mapped, rejected, &map, options)
     })
 }

@@ -9,7 +9,6 @@ mod chain;
 mod cli;
 mod io;
 mod mapping;
-mod transaction;
 
 /// Execute the product command-line entry point.
 #[doc(hidden)]
